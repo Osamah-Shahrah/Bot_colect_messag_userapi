@@ -1,0 +1,76 @@
+# مشروع: Osamah Userbot Message Collector
+# المتطلبات: pip install telethon flask
+
+import os
+from telethon import TelegramClient, events
+from flask import Flask
+from threading import Thread
+
+# ---------- إعدادات ----------
+API_ID = int(os.getenv("API_ID", "123456"))         # ضع API ID
+API_HASH = os.getenv("API_HASH", "YOUR_API_HASH")   # ضع API Hash
+TARGET_CHAT = int(os.getenv("TARGET_CHAT", "-1001234567890"))  # معرف مجموعتك الخاصة
+
+# الكلمات المستهدفة
+KEYWORDS = [
+    "تصميم متجر", "تحسين seo", "تحسين SEO",
+    "ضبط المتجر", "تطوير موقع", "تحسين محركات البحث",
+    "إعلانات", "تسويق إلكتروني", "تصميم موقع"
+]
+
+# ---------- السيرفر لـ UptimeRobot ----------
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Userbot is running ✅"
+
+def run_flask():
+    app.run(host="0.0.0.0", port=8080)
+
+def keep_alive():
+    t = Thread(target=run_flask)
+    t.daemon = True
+    t.start()
+
+# ---------- تهيئة العميل (Userbot) ----------
+client = TelegramClient("osamah_session", API_ID, API_HASH)
+
+# ---------- معالجة الرسائل ----------
+@client.on(events.NewMessage)
+async def handler(event):
+    if event.is_group:
+        text = event.raw_text.lower()
+        if any(kw.lower() in text for kw in KEYWORDS):
+            sender = await event.get_sender()
+            chat = await event.get_chat()
+
+            sender_name = getattr(sender, "first_name", "غير معروف")
+            username = f"@{sender.username}" if sender.username else "بدون يوزر"
+            chat_title = getattr(chat, "title", "محادثة خاصة")
+
+            # إنشاء ملخص بسيط
+            msg = (
+                f"📩 تم العثور على رسالة مطابقة:\n"
+                f"👤 المرسل: {sender_name} ({username})\n"
+                f"💬 المجموعة: {chat_title}\n"
+                f"🔗 الرابط: {event.message.id if event.is_group else 'لا يوجد'}\n\n"
+                f"✉️ الرسالة:\n{text}"
+            )
+
+            try:
+                # إعادة إرسال الرسالة إلى مجموعتك الخاصة
+                await client.send_message(TARGET_CHAT, msg)
+                await event.forward_to(TARGET_CHAT)
+            except Exception as e:
+                print("خطأ في الإرسال:", e)
+
+# ---------- التشغيل ----------
+def main():
+    keep_alive()
+    print("🚀 Userbot started successfully...")
+    client.start()
+    client.run_until_disconnected()
+
+if __name__ == "__main__":
+    main()
